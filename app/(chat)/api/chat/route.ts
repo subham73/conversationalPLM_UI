@@ -68,6 +68,7 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     requestBody = postRequestBodySchema.parse(json);
+     console.log("Incoming requestBody:", JSON.stringify(requestBody, null, 2)); //sj
   } catch (_) {
     return new ChatSDKError('bad_request:api').toResponse();
   }
@@ -183,6 +184,11 @@ export async function POST(request: Request) {
 
         result.consumeStream();
 
+        // sj    
+        if (result) {
+          console.log("Provider raw result:", JSON.stringify(result, null, 2));
+        }
+
         dataStream.merge(
           result.toUIMessageStream({
             sendReasoning: true,
@@ -221,6 +227,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ChatSDKError) {
       return error.toResponse();
+    }else{
+      console.error("Unexpected error in chat api:", error);
+      return new Response("Internal error", { status: 500 });
     }
   }
 }

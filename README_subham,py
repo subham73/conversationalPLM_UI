@@ -1,0 +1,6 @@
+setting up the local environment , 
+create the local postgres database
+add the url to the env.local 
+-> pnpm install 
+-> pnpm db:migrate
+-> pnpm dev
