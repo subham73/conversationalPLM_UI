@@ -4,3 +4,172 @@ add the url to the env.local
 -> pnpm install 
 -> pnpm db:migrate
 -> pnpm dev
+
+
+## backend -> fastapi 
+app/
+--- llm.py
+--- main.py
+--- schemas.py
+.env
+requirement.txt
+
+
+requirement.txt 
+```
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-dotenv==1.0.1
+pydantic==2.9.0
+openai==1.51.0
+```
+app/llm.py
+```python
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+
+client = OpenAI()
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+```
+
+app/schemas.py
+```python
+from typing import List, Dict, Any
+from pydantic import BaseModel
+
+class MessagePart(BaseModel):
+    type: str
+    text: str
+
+class Message(BaseModel):
+    id: str
+    role: str
+    parts: List[MessagePart]
+
+class ChatRequest(BaseModel):
+    messages: List[Message]
+
+class SyncChatResponse(BaseModel):
+    text: str
+```
+
+app/main.py
+```python 
+import http
+import json
+import os
+from typing import Iterator
+import uuid
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
+from .schemas import ChatRequest, SyncChatResponse
+from .llm import client, MODEL
+
+app = FastAPI(title="Vercel AI SDK x FastAPI (Data Stream v1)")
+
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest):
+    print("woww am i inside")
+    messages = [
+        {
+            "role": m.role,
+            "content": "".join([part.text for part in m.parts if part.type == "text"])
+        }
+        for m in req.messages
+    ]
+
+    def token_stream():
+        message_id = str(uuid.uuid4())
+        full_response = ""
+
+        # ​​ Start message event
+        yield "data: " + json.dumps({
+            "type": "start",
+            "messageId": message_id
+        }) + "\n\n"
+
+        # ​​ Start of text block
+        yield "data: " + json.dumps({
+            "type": "text-start",
+            "id": message_id
+        }) + "\n\n"
+
+        # Stream chunks
+        stream = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            stream=True
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+            if delta and getattr(delta, "content", None):
+                text = delta.content
+                full_response += text
+                yield "data: " + json.dumps({
+                    "type": "text-delta",
+                    "id": message_id,
+                    "delta": text
+                }) + "\n\n"
+
+        # ​​ End of text block
+        yield "data: " + json.dumps({
+            "type": "text-end",
+            "id": message_id
+        }) + "\n\n"
+
+        # ​​ [DONE] marker
+        yield "data: [DONE]\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "text/event-stream",
+        "x-vercel-ai-ui-message-stream": "v1"
+    }
+
+    return StreamingResponse(token_stream(), headers=headers)
+
+@app.post("/api/chat-sync", response_model=SyncChatResponse)
+def chat_sync(req: ChatRequest):
+    # Same message extraction you have
+    messages = [
+        {
+            "role": m.role,
+            "content": "".join([part.text for part in m.parts if part.type == "text"])
+        }
+        for m in req.messages
+    ]
+
+    # Call your LLM client but WITHOUT streaming, get full completion text
+    completion = client.chat.completions.create(
+        model=MODEL,
+        messages=messages,
+        stream=False  # Important: non-streaming call! 
+    )
+    
+    # Extract the full completion text (adjust if needed depending on your client)
+    text = completion.choices[0].message.content if completion.choices else ""
+
+    return SyncChatResponse(text=text)
+```
