@@ -14,16 +14,18 @@ export function CodeBlock({
   children,
   ...props
 }: CodeBlockProps) {
+  const match = /language-(\w+)/.exec(className || "");
   if (!inline) {
-    return (
-      <div className="not-prose flex flex-col">
-        <pre
-          {...props}
-          className={`text-sm w-full overflow-x-auto dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl dark:text-zinc-50 text-zinc-900`}
-        >
-          <code className="whitespace-pre-wrap break-words">{children}</code>
-        </pre>
-      </div>
+    return match ? (      
+    <pre className="bg-gray-100 text-black text-sm w-full overflow-x-auto px-4 py-2">
+      <code className="whitespace-pre-wrap break-words font-mono">
+        {children}
+      </code>
+    </pre>
+    ) : (
+      <code className="bg-gray-200 text-black px-1 py-0.5 rounded font-sans">
+        {children}
+      </code>
     );
   } else {
     return (
