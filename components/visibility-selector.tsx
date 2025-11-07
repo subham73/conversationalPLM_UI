@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   CheckCircleFillIcon,
@@ -48,6 +49,20 @@ export function VisibilitySelector({
   selectedVisibilityType: VisibilityType;
 } & React.ComponentProps<typeof Button>) {
   const [open, setOpen] = useState(false);
+  const [showIntegrationFields, setShowIntegrationFields] = useState(false);
+  const [showJiraFields, setShowJiraFields] = useState(false);
+
+  const [integrationCredentials, setIntegrationCredentials] = useState({
+    serverUrl: '',
+    username: '',
+    password: '',
+  });
+
+  const [jiraCredentials, setJiraCredentials] = useState({
+    jiraUrl: '',
+    jiraUser: '',
+    jiraToken: '',
+  });
 
   const { visibilityType, setVisibilityType } = useChatVisibility({
     chatId,
@@ -55,8 +70,21 @@ export function VisibilitySelector({
   });
 
   const selectedVisibility = useMemo(
-    () => visibilities.find((visibility) => visibility.id === visibilityType),
+    () => visibilities.find((v) => v.id === visibilityType),
     [visibilityType],
+  );
+
+  // 🔹 Logic to check if data exists
+  const integrationHasData = Boolean(
+    integrationCredentials.serverUrl ||
+      integrationCredentials.username ||
+      integrationCredentials.password,
+  );
+
+  const jiraHasData = Boolean(
+    jiraCredentials.jiraUrl ||
+      jiraCredentials.jiraUser ||
+      jiraCredentials.jiraToken,
   );
 
   return (
@@ -79,14 +107,28 @@ export function VisibilitySelector({
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="min-w-[300px]">
+      <DropdownMenuContent
+        align="start"
+        className="min-w-[320px] space-y-1"
+        // 🔸 prevent closing when interacting with inputs/buttons
+        onPointerDownOutside={(e) => {
+          if (e.target instanceof HTMLElement && e.target.closest('input,button')) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          if (e.target instanceof HTMLElement && e.target.closest('input,button')) {
+            e.preventDefault();
+          }
+        }}
+      >
+        {/* Visibility Options */}
         {visibilities.map((visibility) => (
           <DropdownMenuItem
-            data-testid={`visibility-selector-item-${visibility.id}`}
             key={visibility.id}
             onSelect={() => {
               setVisibilityType(visibility.id);
-              setOpen(false);
+              setOpen(true);
             }}
             className="gap-4 group/item flex flex-row justify-between items-center"
             data-active={visibility.id === visibilityType}
@@ -99,11 +141,168 @@ export function VisibilitySelector({
                 </div>
               )}
             </div>
-            <div className="text-foreground dark:text-foreground opacity-0 group-data-[active=true]/item:opacity-100">
+            <div
+              className={cn(
+                'opacity-0 group-data-[active=true]/item:opacity-100',
+                'text-foreground dark:text-foreground',
+              )}
+            >
               <CheckCircleFillIcon />
             </div>
           </DropdownMenuItem>
         ))}
+
+        <div className="h-px bg-border my-1" />
+
+        {/* ---------- INTEGRATION SECTION ---------- */}
+        <DropdownMenuItem
+          onSelect={(e) => e.preventDefault()} 
+          className="flex flex-col items-start gap-2 cursor-pointer"
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('input,button')) return;
+            // 🔹 Only one open at a time
+            setShowIntegrationFields((prev) => {
+              const newState = !prev;
+              if (newState) setShowJiraFields(false); // close JIRA when Integration opens
+              return newState;
+            });
+          }}
+        >
+          <div className="flex w-full justify-between items-center">
+            <span className="font-medium">3D Experience</span>
+            <input
+              type="checkbox"
+              checked={integrationHasData}
+              readOnly
+              className="pointer-events-none"
+            />
+          </div>
+
+          {showIntegrationFields && (
+            <div className="flex flex-col gap-2 w-full mt-2">
+              <Input
+                placeholder="Server URL"
+                value={integrationCredentials.serverUrl}
+                onChange={(e) =>
+                  setIntegrationCredentials((c) => ({
+                    ...c,
+                    serverUrl: e.target.value,
+                  }))
+                }
+              />
+              <Input
+                placeholder="Username"
+                value={integrationCredentials.username}
+                onChange={(e) =>
+                  setIntegrationCredentials((c) => ({
+                    ...c,
+                    username: e.target.value,
+                  }))
+                }
+              />
+              <Input
+                placeholder="Password"
+                type="password"
+                value={integrationCredentials.password}
+                onChange={(e) =>
+                  setIntegrationCredentials((c) => ({
+                    ...c,
+                    password: e.target.value,
+                  }))
+                }
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full mt-1"
+                onClick={() => {
+                  console.log('Saving Integration:', integrationCredentials);
+                  setShowIntegrationFields(false);
+                  setOpen(false);
+                }}
+              >
+                Save Integration
+              </Button>
+            </div>
+          )}
+        </DropdownMenuItem>
+
+        <div className="h-px bg-border my-1" />
+
+        {/* ---------- JIRA SECTION ---------- */}
+        <DropdownMenuItem
+          onSelect={(e) => e.preventDefault()} 
+          className="flex flex-col items-start gap-2 cursor-pointer"
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('input,button')) return;
+            // 🔹 Only one open at a time
+            setShowJiraFields((prev) => {
+              const newState = !prev;
+              if (newState) setShowIntegrationFields(false); // close Integration when JIRA opens
+              return newState;
+            });
+          }}
+        >
+          <div className="flex w-full justify-between items-center">
+            <span className="font-medium">JIRA</span>
+            <input
+              type="checkbox"
+              checked={jiraHasData}
+              readOnly
+              className="pointer-events-none"
+            />
+          </div>
+
+          {showJiraFields && (
+            <div className="flex flex-col gap-2 w-full mt-2">
+              <Input
+                placeholder="JIRA URL"
+                value={jiraCredentials.jiraUrl}
+                onChange={(e) =>
+                  setJiraCredentials((c) => ({
+                    ...c,
+                    jiraUrl: e.target.value,
+                  }))
+                }
+              />
+              <Input
+                placeholder="JIRA Username / Email"
+                value={jiraCredentials.jiraUser}
+                onChange={(e) =>
+                  setJiraCredentials((c) => ({
+                    ...c,
+                    jiraUser: e.target.value,
+                  }))
+                }
+              />
+              <Input
+                placeholder="API Token"
+                type="password"
+                value={jiraCredentials.jiraToken}
+                onChange={(e) =>
+                  setJiraCredentials((c) => ({
+                    ...c,
+                    jiraToken: e.target.value,
+                  }))
+                }
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full mt-1"
+                onClick={() => {
+                  console.log('Saving JIRA:', jiraCredentials);
+                  setShowJiraFields(false);
+                  setOpen(false);
+                }}
+              >
+                Save JIRA
+              </Button>
+            </div>
+          )}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
