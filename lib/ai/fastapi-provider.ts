@@ -115,7 +115,10 @@ class FastAPIChatLanguageModel implements LanguageModelV2 {
             }
           }
         } finally {
-          controller.close();
+          if (!closed) {
+            closed = true;
+            controller.close();
+          }
         }
       }
     });
